@@ -15,6 +15,21 @@ const kafka = new Kafka({
 })
 ```
 
+## Client Id
+A logical identifier of an application. Can be used by brokers to apply quotas or trace requests to a specific application. Example: `booking-events-processor`.
+
+The [kafka documentation](https://kafka.apache.org/documentation/#design_quotasgroups) describes the `clientId` as:
+
+> Client-id is a logical grouping of clients with a meaningful name chosen by the client application. The tuple (user, client-id) defines a secure logical group of clients that share both user principal and client-id. Quotas can be applied to (user, client-id), user or client-id groups.
+
+It [also says](https://kafka.apache.org/documentation/#producerconfigs_client.id):
+
+> `client.id`
+>
+> An id string to pass to the server when making requests. The purpose of this is to be able to track the source of requests beyond just ip/port by allowing a logical application name to be included in server-side request logging.
+
+Therefore the `clientId` should be shared across multiple instances in a cluster or horizontally scaled application, but distinct for each application.
+
 ## Broker discovery
 
 Normally KafkaJS will notice and react to broker cluster topology changes automatically, but in some circumstances you may want to be able to dynamically
@@ -79,7 +94,7 @@ Note that the broker may be configured to reject your authentication attempt if 
 
 | option                    | description                                                                                                                                                                             | default |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| authenticationTimeout     | Timeout in ms for authentication requests                                                                                                                                               | `1000`  |
+| authenticationTimeout     | Timeout in ms for authentication requests                                                                                                                                               | `10000`  |
 | reauthenticationThreshold | When periodic reauthentication (`connections.max.reauth.ms`) is configured on the broker side, reauthenticate when `reauthenticationThreshold` milliseconds remain of session lifetime. | `10000` |
 
 ### PLAIN/SCRAM Example
@@ -88,7 +103,7 @@ Note that the broker may be configured to reject your authentication attempt if 
 new Kafka({
   clientId: 'my-app',
   brokers: ['kafka1:9092', 'kafka2:9092'],
-  // authenticationTimeout: 1000,
+  // authenticationTimeout: 10000,
   // reauthenticationThreshold: 10000,
   ssl: true,
   sasl: {
@@ -105,7 +120,7 @@ new Kafka({
 new Kafka({
   clientId: 'my-app',
   brokers: ['kafka1:9092', 'kafka2:9092'],
-  // authenticationTimeout: 1000,
+  // authenticationTimeout: 10000,
   // reauthenticationThreshold: 10000,
   ssl: true,
   sasl: {
@@ -132,7 +147,81 @@ The OAuth bearer token must be an object with properties value and
 request.
 
 The implementation of the oauthBearerProvider must take care that tokens are
-reused and refreshed when appropriate.
+reused and refreshed when appropriate. An example implementation using
+[`simple-oauth2`](https://github.com/lelylan/simple-oauth2) would look something
+like the following:
+
+```ts
+import { AccessToken, ClientCredentials } from 'simple-oauth2'
+interface OauthBearerProviderOptions {
+  clientId: string;
+  clientSecret: string;
+  host: string;
+  path: string;
+  refreshThresholdMs: number;
+}
+
+const oauthBearerProvider = (options: OauthBearerProviderOptions) => {
+  const client = new ClientCredentials({
+    client: {
+      id: options.clientId,
+      secret: options.clientSecret
+    },
+    auth: {
+      tokenHost: options.host,
+      tokenPath: options.path
+    }
+  });
+
+  let tokenPromise: Promise<string>;
+  let accessToken: AccessToken;
+
+  async function refreshToken() {
+    try {
+      if (accessToken == null) {
+        accessToken = await client.getToken({})
+      }
+
+      if (accessToken.expired(options.refreshThresholdMs / 1000)) {
+        accessToken = await accessToken.refresh()
+      }
+
+      const nextRefresh = accessToken.token.expires_in * 1000 - options.refreshThresholdMs;
+      setTimeout(() => {
+        tokenPromise = refreshToken()
+      }, nextRefresh);
+
+      return accessToken.token.access_token;
+    } catch (error) {
+      accessToken = null;
+      throw error;
+    }
+  }
+
+  tokenPromise = refreshToken();
+
+  return async function () {
+    return {
+      value: await tokenPromise
+    }
+  }
+};
+
+const kafka = new Kafka({
+  // ... other required options
+  sasl: {
+    mechanism: 'oauthbearer',
+    oauthBearerProvider: oauthBearerProvider({
+      clientId: 'oauth-client-id',
+      clientSecret: 'oauth-client-secret',
+      host: 'https://my-oauth-server.com',
+      path: '/oauth/token',
+      // Refresh the token 15 seconds before it expires
+      refreshThreshold: 15000,
+    }),
+  },
+})
+```
 
 ### AWS IAM Example
 
@@ -140,7 +229,7 @@ reused and refreshed when appropriate.
 new Kafka({
   clientId: 'my-app',
   brokers: ['kafka1:9092', 'kafka2:9092'],
-  // authenticationTimeout: 1000,
+  // authenticationTimeout: 10000,
   // reauthenticationThreshold: 10000,
   ssl: true,
   sasl: {
@@ -176,6 +265,23 @@ A complete breakdown can be found in the IAM User Guide's
 It is **highly recommended** that you use SSL for encryption when using `PLAIN` or `AWS`,
 otherwise credentials will be transmitted in cleartext!
 
+### Custom Authentication Mechanisms
+
+If an authentication mechanism is not supported out of the box in KafkaJS, a custom authentication
+mechanism can be introduced as a plugin:
+
+```js
+{ 
+  sasl: { 
+      mechanism: <mechanism name>,
+      authenticationProvider: ({ host, port, logger, saslAuthenticate }) => { authenticate: () => Promise<void> }
+  }
+}
+```
+
+See [Custom Authentication Mechanisms](CustomAuthenticationMechanism.md) for more information on how to implement your own
+authentication mechanism.
+
 ## Connection Timeout
 
 Time in milliseconds to wait for a successful connection. The default value is: `1000`.
@@ -197,6 +303,16 @@ new Kafka({
   clientId: 'my-app',
   brokers: ['kafka1:9092', 'kafka2:9092'],
   requestTimeout: 25000
+})
+```
+
+The request timeout can be disabled by setting `enforceRequestTimeout` to `false`.
+
+```javascript
+new Kafka({
+  clientId: 'my-app',
+  brokers: ['kafka1:9092', 'kafka2:9092'],
+  enforceRequestTimeout: false
 })
 ```
 
@@ -327,4 +443,38 @@ const kafka = new Kafka({
   brokers: ['kafka1:9092', 'kafka2:9092'],
   socketFactory: myCustomSocketFactory,
 })
+```
+
+### Proxy support
+
+Support for proxying traffic can be implemented with a custom socket factory. In the example
+below we are using [proxy-chain](https://github.com/apify/proxy-chain) to integrate with the
+proxy server, but any other proxy library can be used as long as the socket factory interface
+is implemented.
+
+```javascript
+const tls = require('tls')
+const net = require('net')
+const { createTunnel, closeTunnel } = require('proxy-chain')
+
+const socketFactory = ({ host, port, ssl, onConnect }) => {
+  const socket = ssl ? new tls.TLSSocket() : new net.Socket()
+
+  createTunnel(process.env.HTTP_PROXY, `${host}:${port}`)
+    .then((tunnelAddress) => {
+      const [tunnelHost, tunnelPort] = tunnelAddress.split(':')
+      socket.setKeepAlive(true, 60000)
+      socket.connect(
+        Object.assign({ host: tunnelHost, port: tunnelPort, servername: host }, ssl),
+        onConnect
+      )
+
+      socket.on('close', () => {
+        closeTunnel(tunnelServer, true)
+      })
+    })
+    .catch(error => socket.emit('error', error))
+
+  return socket
+}
 ```

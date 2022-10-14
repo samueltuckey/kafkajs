@@ -40,7 +40,7 @@ run().catch(e => console.error(`[example/consumer] ${e.message}`, e))
 const errorTypes = ['unhandledRejection', 'uncaughtException']
 const signalTraps = ['SIGTERM', 'SIGINT', 'SIGUSR2']
 
-errorTypes.map(type => {
+errorTypes.forEach(type => {
   process.on(type, async e => {
     try {
       console.log(`process.on ${type}`)
@@ -53,7 +53,7 @@ errorTypes.map(type => {
   })
 })
 
-signalTraps.map(type => {
+signalTraps.forEach(type => {
   process.once(type, async () => {
     try {
       await consumer.disconnect()
@@ -69,7 +69,7 @@ signalTraps.map(type => {
 A similar example in TypeScript
 
 ```typescript
-import { Consumer, ConsumerSubscribeTopic, EachBatchPayload, Kafka, EachMessagePayload } from 'kafkajs'
+import { Consumer, ConsumerSubscribeTopics, EachBatchPayload, Kafka, EachMessagePayload } from 'kafkajs'
 
 export default class ExampleConsumer {
   private kafkaConsumer: Consumer
@@ -81,8 +81,8 @@ export default class ExampleConsumer {
   }
 
   public async startConsumer(): Promise<void> {
-    const topic: ConsumerSubscribeTopic = {
-      topic: 'example-topic',
+    const topic: ConsumerSubscribeTopics = {
+      topics: ['example-topic'],
       fromBeginning: false
     }
 
@@ -103,8 +103,8 @@ export default class ExampleConsumer {
   }
 
   public async startBatchConsumer(): Promise<void> {
-    const topic: ConsumerSubscribeTopic = {
-      topic: 'example-topic',
+    const topic: ConsumerSubscribeTopics = {
+      topics: ['example-topic'],
       fromBeginning: false
     }
 
@@ -112,10 +112,10 @@ export default class ExampleConsumer {
       await this.kafkaConsumer.connect()
       await this.kafkaConsumer.subscribe(topic)
       await this.kafkaConsumer.run({
-        eachBatch: async (eatchBatchPayload: EachBatchPayload) => {
-          const { topic, partition, batch } = eachBatchPayload
+        eachBatch: async (eachBatchPayload: EachBatchPayload) => {
+          const { batch } = eachBatchPayload
           for (const message of batch.messages) {
-            const prefix = `${topic}[${partition} | ${message.offset}] / ${message.timestamp}`
+            const prefix = `${batch.topic}[${batch.partition} | ${message.offset}] / ${message.timestamp}`
             console.log(`- ${prefix} ${message.key}#${message.value}`) 
           }
         }
@@ -187,7 +187,7 @@ run().catch(e => console.error(`[example/consumer] ${e.message}`, e))
 const errorTypes = ['unhandledRejection', 'uncaughtException']
 const signalTraps = ['SIGTERM', 'SIGINT', 'SIGUSR2']
 
-errorTypes.map(type => {
+errorTypes.forEach(type => {
   process.on(type, async e => {
     try {
       console.log(`process.on ${type}`)
@@ -200,7 +200,7 @@ errorTypes.map(type => {
   })
 })
 
-signalTraps.map(type => {
+signalTraps.forEach(type => {
   process.once(type, async () => {
     try {
       await consumer.disconnect()
