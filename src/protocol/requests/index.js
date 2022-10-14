@@ -70,6 +70,10 @@ const requests = {
   ExpireDelegationToken: noImplementedRequestDefinitions,
   DescribeDelegationToken: noImplementedRequestDefinitions,
   DeleteGroups: require('./deleteGroups'),
+  ElectLeaders: noImplementedRequestDefinitions,
+  IncrementalAlterConfigs: noImplementedRequestDefinitions,
+  AlterPartitionReassignments: require('./alterPartitionReassignments'),
+  ListPartitionReassignments: require('./listPartitionReassignments'),
 }
 
 const names = Object.keys(apiKeys)
@@ -83,7 +87,7 @@ const findApiName = apiKey => names[keys.indexOf(apiKey)]
 const lookup = versions => (apiKey, definition) => {
   const version = versions[apiKey]
   const availableVersions = definition.versions.map(Number)
-  const bestImplementedVersion = Math.max.apply(this, availableVersions)
+  const bestImplementedVersion = Math.max(...availableVersions)
 
   if (!version || version.maxVersion == null) {
     throw new KafkaJSServerDoesNotSupportApiKey(

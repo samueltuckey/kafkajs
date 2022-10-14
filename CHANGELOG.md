@@ -5,6 +5,109 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+
+## [2.2.0] - 2022-08-16
+
+### Added
+  - Add the ability to inject custom authentication mechanisms #1372
+  - Add admin methods `alterPartitionReassignments` & `listPartitionReassignments` #1419
+
+### Fixed
+  - Fix deprecation warning when connecting to a broker over TLS via IP address #1425
+  - Improve consumer performance when subscribed to thousands of topics #1436
+
+## [2.1.0] - 2022-06-28
+
+### Added
+  - Add `pause` function to `eachMessage`/`eachBatch` to pause the current topic-partition #1364
+  - The `KafkaMessage` type is now a union between the pre-Kafka 0.10 message format and the current #1401
+
+### Fixed
+  - Fix 100% CPU utilization when all brokers are unavailable #1402
+  - Fix persistent error when trying to produce after a topic authorization error #1385
+  - Fix error when aborting or committing an empty transaction #1388
+  - Don't re-process messages from a paused partition after breaking the consumption flow #1382
+
+## [2.0.2] - 2022-05-31
+
+### Fixed
+  - Fix `consumer.seek` when seeking on multiple partitions for the same topic #1378
+
+## [2.0.1] - 2022-05-23
+
+### Fixed
+  - Fix members leaving the group after not being assigned any partitions #1362
+  - Make `REPLICA_NOT_AVAILABLE` retriable #1351
+  - Document `admin.createTopics` respecting cluster default partitions number and replication factor #1360
+
+## [2.0.0] - 2022-05-06
+
+This is the first major version released in 4 years, and contains a few important breaking changes. **A [migration guide](https://kafka.js.org/docs/migration-guide-v2.0.0) has been prepared to help with the migration process.** Be sure to read it before upgrading from older versions of KafkaJS.
+
+### Added
+  - Validate configEntries when creating topics #1309
+  - New `topics` argument for `consumer.subscribe` to subscribe to multiple topics #1313
+  - Support duplicate header keys #1132
+
+### Removed
+  - **BREAKING:** Drop support for Node 10 and 12 #1333
+  - **BREAKING:** Remove deprecated enum `ResourceTypes` #1334
+  - **BREAKING:** Remove deprecated argument `topic` from `admin.fetchOffsets` #1335
+  - **BREAKING:** Remove deprecated method `getTopicMetadata` from admin client #1336
+  - **BREAKING:** Remove typo type `TopicPartitionOffsetAndMedata` #1338
+  - **BREAKING:** Remove deprecated error property originalError. Replaced by `cause` #1341
+
+### Changed
+  - **BREAKING:** Change default partitioner to Java compatible #1339
+  - Improve consumer performance #1258
+  - **BREAKING:** Enforce request timeout by default #1337
+  - **BREAKING** Honor default replication factor and partition count when creating topics #1305
+  - Increase default authentication timeout to 10 seconds #1340
+
+### Fixed
+  - Fix invalid sequence numbers when producing concurrently with idempotent producer #1050 #1172
+  - Fix correlation id and sequence number overflow #1310
+  - Fix consumer not restarting on retriable connection errors #1304
+  - Avoid endless sleep loop #1323
+
+## [1.16.0] - 2022-02-09
+
+### Added
+  - Allow manual heartbeating from inside `eachMessage` handler #1255
+  - Add `rebalancing` consumer event #1067 #1079
+  - Add overload typings for all event types #1202
+  - Return `configSource` in `admin.decribeConfigs` #1023
+  - Add `topics` property to `admin.fetchOffsets` to fetch offsets for multiple topics #992 #998
+  - Improve error output from `admin.createTopic` #1104
+  - Export Error classes #1254
+  - Validate `brokers` list contains strings #1284
+  - Throw error when failing to stop or disconnect consumer #960
+
+### Changed
+  
+  - Don't commit offsets from `consumer.seek` when `autoCommit` is `false` #1012
+  - Do not restart the consumer on non-retriable errors #1274
+  - Downgrade consumer rebalance error log to `warn` #1279
+  - Make default round-robin partitioner topic-aware #1112
+
+### Fixed
+  - Fix `offset` type of `consumer.seek` #981
+  - Fix crash when used in Electron app built with electron-builder #984
+  - Improve performance of Fetch requests #985
+  - Fix crash when using topics with name of built-in Javascript functions #995
+  - Fix type of consumer constructor to require config object #1002
+  - Fix message type to allow `null` key #1037
+  - Respect `heartbeatInterval` when invoking `heartbeat` concurrently #1026
+  - Fix type of `timestamp` of `LoggerEntryContent` to be string #1082
+  - Fix return type of `admin.describeAcls` #1118
+  - Fix consumer getting stuck in `DISCONNECTING` state if in-flight requests time out during disconnect #1208
+  - Fix failed serialization of BigInts when logging #1234
+  - Fix crash when committing offsets for a topic before consumer initialization #1235
+  - Reauthenticate to all brokers on demand #1241
+  - Remove unnecessary warn log when calling `admin.deleteTopicRecords` with offset `-1` #1265
+  - Handle empty control batches #1256
+  - Send empty topic array as null when fetching metadata #1184
+
 ## [1.15.0] - 2020-11-24
 ### Added
   - Initial work for static membership #888

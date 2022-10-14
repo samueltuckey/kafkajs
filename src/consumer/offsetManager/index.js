@@ -1,5 +1,4 @@
 const Long = require('../../utils/long')
-const flatten = require('../../utils/flatten')
 const isInvalidOffset = require('./isInvalidOffset')
 const initializeConsumerOffsets = require('./initializeConsumerOffsets')
 const {
@@ -131,8 +130,8 @@ module.exports = class OffsetManager {
     const subtractTopicOffsets = topic =>
       subtractPartitionOffsets(this.resolvedOffsets[topic], committedOffsets[topic])
 
-    const offsetsDiff = this.topics.map(subtractTopicOffsets)
-    return flatten(offsetsDiff).reduce((sum, offset) => sum.add(offset), Long.fromValue(0))
+    const offsetsDiff = this.topics.flatMap(subtractTopicOffsets)
+    return offsetsDiff.reduce((sum, offset) => sum.add(offset), Long.fromValue(0))
   }
 
   /**
@@ -142,15 +141,6 @@ module.exports = class OffsetManager {
     const { groupId, generationId, memberId } = this
     const defaultOffset = this.cluster.defaultOffset(this.topicConfigurations[topic])
     const coordinator = await this.getCoordinator()
-
-    if (!this.autoCommit) {
-      this.resolveOffset({
-        topic,
-        partition,
-        offset: defaultOffset,
-      })
-      return
-    }
 
     await coordinator.offsetCommit({
       groupId,
@@ -224,17 +214,7 @@ module.exports = class OffsetManager {
 
   /**
    * Return all locally resolved offsets which are not marked as committed, by topic-partition.
-   * @returns {OffsetsByTopicPartition}
-   *
-   * @typedef {Object} OffsetsByTopicPartition
-   * @property {TopicOffsets[]} topics
-   *
-   * @typedef {Object} TopicOffsets
-   * @property {PartitionOffset[]} partitions
-   *
-   * @typedef {Object} PartitionOffset
-   * @property {string} partition
-   * @property {string} offset
+   * @returns {import('../../../types').OffsetsByTopicPartition}
    */
   uncommittedOffsets() {
     const offsets = topic => keys(this.resolvedOffsets[topic])
@@ -290,7 +270,12 @@ module.exports = class OffsetManager {
           (obj, { partition, offset }) => assign(obj, { [partition]: offset }),
           {}
         )
-        assign(this.committedOffsets()[topic], updatedOffsets)
+
+        this[PRIVATE.COMMITTED_OFFSETS][topic] = assign(
+          {},
+          this.committedOffsets()[topic],
+          updatedOffsets
+        )
       })
 
       this.lastCommit = Date.now()
