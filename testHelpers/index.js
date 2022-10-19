@@ -240,7 +240,7 @@ const waitForConsumerToJoinGroup = (consumer, { maxWait = 10000, label = '' } = 
     })
     consumer.on(consumer.events.CRASH, event => {
       clearTimeout(timeoutId)
-      consumer.disconnect().then(() => {
+      consumer.disconnect(true).then(() => {
         reject(event.payload.error)
       })
     })
